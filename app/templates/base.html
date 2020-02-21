@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+  <head>
+    {% if title %}
+    <title>{{ title }}</title>
+    {% else %}
+    <title>Heretic Calendar</title>
+    {% endif %}
+  </head>
+  <body>
+    <div>Web app: <a href="/index">Home</a> <a href="/search">Search</a> <a href="/calendar">Calendar</a> <a href="/logout">Logout</a></div>
+    <hr>
+    {% block content %}{% endblock %}
+  </body>
+</html>
