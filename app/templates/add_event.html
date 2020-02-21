@@ -1,0 +1,35 @@
+<!doctype html>
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>Add Event</h1>
+  <form action="/add_event" method="POST">
+    {#<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>#}
+    <p><input type="text" name="event_name" placeholder="Event name" required></p>
+    <p><input type="text" name="event_time" placeholder="Event time" required></p>
+    <p><input type="text" name="description" placeholder="Description"></p>
+    <p>Pick a date:<P>
+    <input type="number" name="day" placeholder="Day" min="1" max="31" required>
+    <select id='month' name="month">
+      <option value="1">January</option>
+      <option value="2">February</option>
+      <option value="3">March</option>
+      <option value="4">April</option>
+      <option value="5">May</option>
+      <option value="6">June</option>
+      <option value="7">July</option>
+      <option value="8">August</option>
+      <option value="9">September</option>
+      <option value="10">October</option>
+      <option value="11">November</option>
+      <option value="12">December</option>
+    </select>
+    <input type="number" name="year" placeholder="Year" min="2020" max="2030" required>
+  <p><input type="submit" value="Submit"></p>
+  </form>
+
+  {% if error == 'format' %}
+    <p> Invalid format. </p>
+  {% endif %}
+
+{% endblock%}

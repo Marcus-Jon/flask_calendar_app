@@ -1,0 +1,21 @@
+<!doctype html>
+
+<html>
+  <head>
+    <title>Login</title>
+  </head>
+  <body>
+    <div>Web app: <a href=http://192.168.99.100:8080>Home</a></div>
+    <hr>
+      <form action="/login" method="POST">
+        {#<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>#}
+        <p><input type="username" name="username" placeholder="Username"></p>
+        <p><input type="password" name="password" placeholder="Password"></p>
+        <p><input type="submit" value="Log in"></p>
+        </form>
+        <p> Don't have an account: <a href=http://127.0.0.1:5000/create_account>Create one</a></p>
+        {% if error %}
+        <p> Incorrect username or password</p>
+        {% endif %}
+  </body>
+</html>

@@ -1,0 +1,36 @@
+<!doctype html>
+
+<html>
+  <head>
+    <title>Create Account</title>
+  </head>
+  <body>
+    <div>Web app: <a href=http://192.168.99.100:8080>Home</a></div>
+    <hr>
+      <form action="/create_account" method="POST">
+        {#<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>#}
+        <p><input type="text" name="firstname" placeholder="Firstname" required></p>
+        <p><input type="text" name="lastname" placeholder="Lastname" required></p>
+        <p><input type="username" name="username" placeholder="Username" required></p>
+        <p><input type="password" name="password" placeholder="Password" required></p>
+        <p><input type="password" name="repeat_password" placeholder="Repeat Password" required></p>
+        <p><input type="text" name="address" placeholder="Address" required></p>
+        <p><input type="text" name="postcode" placeholder="Postcode" required></p>
+        <p><input type="text" name="phone_no" placeholder="Phone Number" required></p>
+        <p><input type="text" name="email" placeholder="Email" required></p>
+
+        <p><input type="submit" value="Create Account"></p>
+
+        {% if error == 'username' %}
+          <p> Username already in use. </p>
+        {% elif error == 'password' %}
+          <p> Passwords do not match. </p>
+        {% elif error == 'email' %}
+          <p> Email already in use. </p>
+        {% elif error == 'format' %}
+          <p> Invalid format. </p>
+        {% endif %}
+
+        </form>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+<!doctype html>
+{% extends "base.html" %}
+
+{% block content %}
+  <div><a href='/add_event'>Add Event</a></div>
+  <h1>Your Calender</h1>
+  {% for i in event %}
+  <div><p> {{i.act_id}} : {{i.time}} : {{i.user_id}} : {{i.description}} : {{i.day}} : {{i.month}} : {{i.year}} : {{i.name}} </p></div>
+  {% endfor %}
+
+  {% for i in day_list %}
+    {% set outloop = loop %}
+    <p> {{outloop.index}} </p>
+    {% for j in event%}
+      {% if outloop.index == j.day %}
+        <p><a href="{{ '/edit_event?id=%s'%j.act_id }}">{{ j.name }}</a></p>
+        {% else %}
+          <p></P>
+        {% endif %}
+    {% endfor %}
+  {% endfor %}
+{% endblock%}

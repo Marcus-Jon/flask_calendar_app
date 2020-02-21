@@ -1,0 +1,20 @@
+<!doctype html>
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>Hello.</h1>
+  <h2>The week ahead.</h2>
+
+  {% for i in week_iter %}
+    {% set outloop = loop %}
+    <p> {{ i.iter}} </p>
+    {% for j in event %}
+      {% if i.iter == j.day %}
+        <p> {{ j.name }} </p>
+        {% else %}
+          <p></P>
+        {% endif %}
+    {% endfor %}
+  {% endfor %}
+
+{% endblock%}

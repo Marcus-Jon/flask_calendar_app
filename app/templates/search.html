@@ -1,0 +1,27 @@
+<!doctype html>
+{% extends "base.html" %}
+
+{% block content %}
+  <h2>Search for events</h2>
+  <form action="/search" method="POST">
+    {#<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>#}
+    <input type="text" name="search" placeholder="Search" required>
+    <select id='field' name="field">
+      <option value="name">name</option>
+      <option value="time">time</option>
+      <option value="day">day</option>
+      <option value="month">month</option>
+      <option value="year">year</option>
+    </select>
+    <input type="submit" value="Search">
+  </form>
+  <div><p>Events</p></div>
+  {% if search %}
+    {% for i in event %}
+    <div><p> {{i.act_id}} : {{i.name}} : {{i.description}} : {{i.time}} : {{i.day}} : {{i.month}} : {{i.year}} </p></div>
+    {% endfor %}
+  {% else %}
+    <p> Search for something </p>
+  {% endif %}
+
+{% endblock%}
