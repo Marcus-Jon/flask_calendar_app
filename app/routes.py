@@ -1,21 +1,20 @@
 from app import app
-import psycopg2 as pg
-from psycopg2 import sql
+import mysql.connector
 from flask import render_template, Flask, redirect, request, session, abort, url_for
-import calendar
+import calendar as cld
 import datetime
 import re
 from flask_wtf.csrf import CSRFProtect
 
 # ------------------------------------------------------------------------------
-connection = pg.connect(host = host, port = port, database = db_name, user = db_user, password = db_password)
+connection = mysql.connector.connect(host="host", user="user", password="password",database="database")
 cur = connection.cursor()
 
 def get_dates():
     week_now = datetime.datetime.today().weekday()
     month_now = datetime.datetime.today().month
     day_now = datetime.datetime.today().day
-    day_total = calendar.monthrange(datetime.datetime.today().year,month_now)[1]
+    day_total = cld.monthrange(datetime.datetime.today().year,month_now)[1]
     return month_now, week_now, day_now, day_total
 
 def user_dict(results):
@@ -51,7 +50,9 @@ def index():
         for i in range(start, end):
             week_iter.append({'iter':i})
 
-        cur.execute(sql.SQL("SELECT activity_id,pgp_sym_decrypt(name::bytea,(%s)) as name,pgp_sym_decrypt(description::bytea,(%s)) as description, time, day, month, year, user_id FROM {table} WHERE {pkey} = (%s) AND {qkey} BETWEEN (%s) AND (%s) AND {skey} = (%s)::uuid ORDER BY {rkey} ASC").format(table=sql.Identifier('activity_tbl'),pkey=sql.Identifier('month'),qkey=sql.Identifier('day'),rkey=sql.Identifier('day'),skey=sql.Identifier('user_id')),[key,key,month_now, start, end, session.get('user_id')])
+        sql_statement = "SELECT activity_id, name, description, time, day, month, year, user_id FROM activity_tbl WHERE month = (%s) AND day BETWEEN (%s) AND (%s) AND user_id = (%s) ORDER BY day ASC"
+        sql_values = (month_now, start, end, session.get('user_id'))
+        cur.execute(sql_statement, sql_values)
         week_act = cur.fetchall()
 
         event = event_dict(week_act)
@@ -66,9 +67,13 @@ def search():
     if session.get('logged_in') == True:
         if request.method == 'POST':
             if request.form['field'] == 'name':
-                cur.execute(sql.SQL("SELECT activity_id, pgp_sym_decrypt(name::bytea, (%s)) as name, pgp_sym_decrypt(description::bytea, (%s)), time, day, month, year, user_id from {table} WHERE pgp_sym_decrypt(name::bytea,(%s)) = (%s) AND {qkey} = (%s)").format(table=sql.Identifier('activity_tbl'),qkey=sql.Identifier('user_id')),[key,key,key,request.form['search'],session.get('user_id')])
+                sql_statement = "SELECT activity_id, name, description, time, day, month, year, user_id FROM activity_tbl WHERE name = (%s) AND user_id = (%s)"
+                sql_statement_else = "SELECT activity_id, name, description, time, day, month, year, user_id FROM activity_tbl WHERE (%s) = (%s) AND user_id = (%s)"
+                sql_values = (request.form['search'],session.get('user_id'))
+                sql_values_else = (request.form['field'],request.form['search'],session.get('user_id'))
+                cur.execute(sql_statement, sql_values)
             else:
-                cur.execute(sql.SQL("SELECT activity_id, pgp_sym_decrypt(name::bytea, (%s)) as name, pgp_sym_decrypt(description::bytea, (%s)), time, day, month, year, user_id from {table} WHERE {pkey} = (%s) AND {qkey} = (%s)").format(table=sql.Identifier('activity_tbl'),pkey=sql.Identifier(request.form['field']),qkey=sql.Identifier('user_id')),[key,key,request.form['search'],session.get('user_id')])
+                cur.execute(sql_statement_else, sql_values_else)
 
             results = cur.fetchall()
             event = event_dict(results)
@@ -94,7 +99,9 @@ def login():
         if not obj:
             return render_template('login.html', error = True)
 
-        cur.execute(sql.SQL("SELECT pgp_sym_decrypt(username::bytea,(%s)) as username, password, user_id FROM {} WHERE pgp_sym_decrypt(username::bytea,(%s)) = (%s) and password = crypt((%s), password)").format(sql.Identifier('account_tbl')),[key,key,request.form['username'], request.form['password']])
+        sql_statement = "SELECT username, password, user_id FROM account_tbl WHERE username = (%s) AND password = (PASSWORD(%s))"
+        sql_values = (request.form['username'], request.form['password'])
+        cur.execute(sql_statement, sql_values)
         results = cur.fetchall()
         if len(results) != 0:
             session['user_id'] = results[0][2]
@@ -118,16 +125,23 @@ def logout():
 @app.route('/create_account', methods = ['GET', 'POST'])
 def create_account():
     if request.method == 'POST':
+
         # check for duplicate in database
-        cur.execute(sql.SQL("SELECT pgp_sym_decrypt(username::bytea,(%s)) as username FROM {} WHERE pgp_sym_decrypt(username::bytea,(%s)) = (%s)").format(sql.Identifier('account_tbl')),[key,key,request.form['username']])
+        sql_statement = "SELECT username FROM account_tbl WHERE username = (%s)"
+        sql_values = (request.form['username'],)
+        cur.execute(sql_statement, sql_values)
         username_check = cur.fetchall()
         if len(username_check) != 0:
             return render_template('create_account.html', error = 'username')
+
         # check passwords match
         if request.form['password'] != request.form['repeat_password']:
             return render_template('create_account.html', error = 'password')
+
         # check for duplicates
-        cur.execute(sql.SQL("SELECT pgp_sym_decrypt(email::bytea,(%s)) as email FROM {table} WHERE pgp_sym_decrypt(email::bytea,(%s)) = (%s)").format(table=sql.Identifier('user_tbl')),[key,key,request.form['email']])
+        sql_statement = "SELECT email from user_tbl WHERE email = (%s)"
+        sql_values = (request.form['email'],)
+        cur.execute(sql_statement, sql_values)
         email_check = cur.fetchall()
         if len(email_check) != 0:
             return render_template('create_account.html', error = 'email')
@@ -166,16 +180,28 @@ def create_account():
         if not obj:
             return render_template('create_account.html', error = 'format')
 
-        cur.execute(sql.SQL("INSERT INTO {}(firstname, lastname, address, postcode, phone_no, email) VALUES (pgp_sym_encrypt((%s),(%s)), pgp_sym_encrypt((%s),(%s)), pgp_sym_encrypt((%s),(%s)), pgp_sym_encrypt((%s),(%s)), pgp_sym_encrypt((%s),(%s)), pgp_sym_encrypt((%s),(%s)))").format(sql.Identifier('user_tbl')),
-                    [request.form['firstname'],key, request.form['lastname'],key, request.form['address'],key, request.form['postcode'],key, request.form['phone_no'],key, request.form['email'],key])
-        connection.commit()
-        cur.execute(sql.SQL("SELECT {field} FROM {table} WHERE pgp_sym_decrypt({pkey}::bytea,(%s)) = (%s)").format(field=sql.Identifier('user_id'),table=sql.Identifier('user_tbl'),
-                    pkey=sql.Identifier('email')),[key, request.form['email']])
-        user_id_add = cur.fetchall()
-        user_id_add = user_id_add[0]
 
-        cur.execute(sql.SQL("INSERT INTO {table}(username, password, user_id) VALUES (pgp_sym_encrypt((%s),(%s)), crypt(%s, gen_salt('bf', 8)), %s)").format(table=sql.Identifier('account_tbl')),[request.form['username'],key, request.form['password'], user_id_add])
+        sql_statement = "INSERT INTO user_tbl (user_id, firstname, lastname, address, postcode, phone_no, email) VALUES (uuid(), %s, %s, %s, %s, %s, %s)"
+        sql_values = (request.form['firstname'], request.form['lastname'], request.form['address'], request.form['postcode'], request.form['phone_no'], request.form['email'])
+        cur.execute(sql_statement, sql_values)
         connection.commit()
+
+        sql_statement = "SELECT user_id FROM user_tbl WHERE email = %s"
+        sql_values = (request.form['email'],)
+        cur.execute(sql_statement, sql_values)
+        user_id_add = cur.fetchall()
+        user_id_add_str = str(user_id_add[0])
+        punctuation = '''('),'''
+        remove_punct = ""
+        for i in user_id_add_str:
+            if i not in punctuation:
+                remove_punct = remove_punct + i
+
+        sql_statement = "INSERT INTO account_tbl (username, password, user_id, admin) VALUES (%s, PASSWORD(%s), %s, %s)"
+        sql_values = (request.form['username'], request.form['password'], remove_punct, 'false')
+        cur.execute(sql_statement, sql_values)
+        connection.commit()
+
         return render_template('login.html')
     elif request.method == 'GET':
         return render_template('create_account.html')
@@ -192,7 +218,9 @@ def calendar():
         if session.get('logged_in') == True:
             month_now, week_now, day_now, day_total = get_dates()
 
-            cur.execute(sql.SQL("SELECT activity_id,pgp_sym_decrypt(name::bytea,(%s)) as name,pgp_sym_decrypt(description::bytea,(%s)) as description, time, day, month, year, user_id FROM {table} WHERE {pkey} = (%s) AND {qkey} = (%s)::uuid").format(table=sql.Identifier('activity_tbl'),pkey=sql.Identifier('month'),qkey=sql.Identifier('user_id')),[key,key,month_now, session['user_id']])
+            sql_statement = "SELECT activity_id, name, description, time, day, month, year, user_id FROM activity_tbl WHERE month = (%s) AND user_id = (%s)"
+            sql_values = (month_now, session['user_id'])
+            cur.execute(sql_statement, sql_values)
             act = cur.fetchall()
             event = event_dict(act)
 
@@ -223,7 +251,9 @@ def add_event():
             if not obj:
                 return render_template('add_event.html', error = 'format')
 
-            cur.execute(sql.SQL("INSERT INTO {table}(time, user_id, description, day, month, year, name) VALUES ((%s), (%s), pgp_sym_encrypt((%s),(%s)), (%s), (%s), (%s), pgp_sym_encrypt((%s),(%s)))").format(table=sql.Identifier('activity_tbl')),[request.form['event_time'],session['user_id'],request.form['description'],key,request.form['day'],request.form['month'],request.form['year'],request.form['event_name'],key])
+            sql_statement = "INSERT INTO activity_tbl (activity_id, time, user_id, description, day, month, year, name) VALUES (uuid(), %s, %s, %s, %s, %s, %s, %s)"
+            sql_values = (request.form['event_time'], session['user_id'], request.form['description'], request.form['day'], request.form['month'], request.form['year'], request.form['event_name'])
+            cur.execute(sql_statement, sql_values)
             connection.commit()
             return redirect(url_for('calendar', method="GET"))
         else:
@@ -244,7 +274,9 @@ def edit_event():
             if id == '':
                 return render_template('calendar.html')
 
-            cur.execute(sql.SQL("SELECT activity_id,pgp_sym_decrypt(name::bytea,(%s)) as name,pgp_sym_decrypt(description::bytea,(%s)) as description, time, day, month, year, user_id FROM {table} WHERE {qkey} = (%s)").format(table=sql.Identifier('activity_tbl'),qkey=sql.Identifier('activity_id')),[key,key,id])
+            sql_statement = "SELECT activity_id, name, description, time, day, month, year, user_id FROM activity_tbl WHERE activity_id = (%s)"
+            sql_values = (id,)
+            cur.execute(sql_statement, sql_values)
 
             results = cur.fetchall()
             event = event_dict(results)
@@ -272,7 +304,9 @@ def update_event():
             if not obj:
                 return render_template('calendar.html')
 
-            cur.execute(sql.SQL("UPDATE {table} SET {akey} = (%s), {bkey} = (%s), {ckey} = (%s), {dkey} = pgp_sym_encrypt((%s),(%s)), {ekey} = (%s), {fkey} = pgp_sym_encrypt((%s),(%s)) WHERE {condit} = (%s)").format(table=sql.Identifier('activity_tbl'),akey=sql.Identifier('day'),bkey=sql.Identifier('month'),ckey=sql.Identifier('year'),dkey=sql.Identifier('name'),ekey=sql.Identifier('time'),fkey=sql.Identifier('description'),condit=sql.Identifier('activity_id')),[request.form['day'],request.form['month'],request.form['year'],request.form['event_name'],key,request.form['event_time'],request.form['description'],key,request.form['event_id']])
+            sql_statement = "UPDATE activity_tbl SET day = (%s), month = (%s), year = (%s), name = (%s), time = (%s), description = (%s) WHERE activity_id = (%s)"
+            sql_values = (request.form['day'], request.form['month'], request.form['year'], request.form['event_name'], request.form['event_time'], request.form['description'], request.form['event_id'])
+            cur.execute(sql_statement, sql_values)
             connection.commit()
             return redirect(url_for('calendar', method="GET"))
         else:
