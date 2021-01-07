@@ -7,7 +7,11 @@ import re
 from flask_wtf.csrf import CSRFProtect
 
 # ------------------------------------------------------------------------------
-connection = mysql.connector.connect(host="host", user="user", password="password",database="database")
+
+with open('inf.txt','r') as inf_file:
+    inf = inf_file.read().splitlines()
+key = inf[4]
+connection = mysql.connector.connect(host=inf[0], user=inf[1], password=inf[2],database=inf[3])
 cur = connection.cursor()
 
 def get_dates():
@@ -99,8 +103,8 @@ def login():
         if not obj:
             return render_template('login.html', error = True)
 
-        sql_statement = "SELECT username, password, user_id FROM account_tbl WHERE username = (%s) AND password = (PASSWORD(%s))"
-        sql_values = (request.form['username'], request.form['password'])
+        sql_statement = "SELECT AES_DECRYPT(username, %s), password, user_id FROM account_tbl WHERE AES_DECRYPT(username, %s) = (%s) AND password = (PASSWORD(%s))"
+        sql_values = (key, key, request.form['username'], request.form['password'])
         cur.execute(sql_statement, sql_values)
         results = cur.fetchall()
         if len(results) != 0:
@@ -127,8 +131,8 @@ def create_account():
     if request.method == 'POST':
 
         # check for duplicate in database
-        sql_statement = "SELECT username FROM account_tbl WHERE username = (%s)"
-        sql_values = (request.form['username'],)
+        sql_statement = "SELECT username FROM account_tbl WHERE AES_DECRYPT(username, %s) = (%s)"
+        sql_values = (key, request.form['username'])
         cur.execute(sql_statement, sql_values)
         username_check = cur.fetchall()
         if len(username_check) != 0:
@@ -181,13 +185,13 @@ def create_account():
             return render_template('create_account.html', error = 'format')
 
 
-        sql_statement = "INSERT INTO user_tbl (user_id, firstname, lastname, address, postcode, phone_no, email) VALUES (uuid(), %s, %s, %s, %s, %s, %s)"
-        sql_values = (request.form['firstname'], request.form['lastname'], request.form['address'], request.form['postcode'], request.form['phone_no'], request.form['email'])
+        sql_statement = "INSERT INTO user_tbl (user_id, firstname, lastname, address, postcode, phone_no, email) VALUES (uuid(), AES_ENCRYPT(%s, %s), AES_ENCRYPT(%s, %s), AES_ENCRYPT(%s, %s), AES_ENCRYPT(%s, %s), AES_ENCRYPT(%s, %s), AES_ENCRYPT(%s, %s))"
+        sql_values = (request.form['firstname'], key, request.form['lastname'], key, request.form['address'], key, request.form['postcode'], key, request.form['phone_no'], key, request.form['email'], key)
         cur.execute(sql_statement, sql_values)
         connection.commit()
 
-        sql_statement = "SELECT user_id FROM user_tbl WHERE email = %s"
-        sql_values = (request.form['email'],)
+        sql_statement = "SELECT user_id FROM user_tbl WHERE AES_DECRYPT(email, %s) = %s"
+        sql_values = (key, request.form['email'])
         cur.execute(sql_statement, sql_values)
         user_id_add = cur.fetchall()
         user_id_add_str = str(user_id_add[0])
@@ -197,8 +201,8 @@ def create_account():
             if i not in punctuation:
                 remove_punct = remove_punct + i
 
-        sql_statement = "INSERT INTO account_tbl (username, password, user_id, admin) VALUES (%s, PASSWORD(%s), %s, %s)"
-        sql_values = (request.form['username'], request.form['password'], remove_punct, 'false')
+        sql_statement = "INSERT INTO account_tbl (username, password, user_id, admin) VALUES (AES_ENCRYPT(%s, %s), PASSWORD(%s), %s, %s)"
+        sql_values = (request.form['username'], key, request.form['password'], remove_punct, 'false')
         cur.execute(sql_statement, sql_values)
         connection.commit()
 
